@@ -50,7 +50,7 @@ MrY=
 )string_literal";
 
 // For decoding the translink API data
-#include <Arduino_JSON.h>
+#include <ArduinoJson.h>
 
 // Buttons on the OLED display
 #define BUTTON_A 15
@@ -187,12 +187,25 @@ int fetch_schedule(int stop_number, int route_number, struct bus *out) {
 					// file found at server
 					if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
 						String payload = https.getString();
-						//TODO: JSON Error handling
-						JSONVar response = JSON.parse(payload)[0]["r"][0]["t"][0];
-						out->route_number = route_number;
-						strncpy(out->dep_time, response["dt"], 6);
-						out->real_time = response["rt"];
-						ret = 0;
+						JsonDocument doc;
+						DeserializationError error = deserializeJson(doc, payload);
+						if (!error) {
+							JsonVariant response = doc[0]["r"][0]["t"][0];
+							JsonVariant dt = response["dt"];
+							JsonVariant rt = response["rt"];
+							if (dt.isNull() == false && rt.isNull() == false) {
+								out->route_number = route_number;
+								strncpy(out->dep_time, (const char *)dt, 6);
+								out->real_time = (bool)rt;
+								ret = 0;
+							} else {
+								Serial.println("[HTTPS] No departure time or real time data found");
+								ret = -5;
+							}
+						} else {
+							Serial.printf("[HTTPS] JSON parse error: %s\n", error.c_str());
+							ret = -4;
+						}
 					}
 				} else {
 					Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
@@ -205,8 +218,8 @@ int fetch_schedule(int stop_number, int route_number, struct bus *out) {
 				ret = -2;
 			}
 			// End extra scoping block
-    	}
-	delete client;
+		}
+		delete client;
 	} else {
 		Serial.println("Unable to create client");
 		ret = -3;
