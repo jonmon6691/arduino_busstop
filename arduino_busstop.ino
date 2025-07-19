@@ -2,11 +2,16 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <math.h>
+
 #include "button.h"
+struct button rotate_screen_button;
+int screen_direction;
 
 // OLED Headers
 #include <Adafruit_SH110X.h>
 #include <Adafruit_GFX.h>
+// Display object
+Adafruit_SH1107 display = Adafruit_SH1107(64, 128, &Wire);
 
 // Fonts
 // Customized with https://tchapi.github.io/Adafruit-GFX-Font-Customiser/
@@ -57,33 +62,40 @@ MrY=
 #define BUTTON_B 32
 #define BUTTON_C 14
 
-struct button rotate_screen_button;
-
-int screen_direction;
-
-// Display object
-Adafruit_SH1107 display = Adafruit_SH1107(64, 128, &Wire);
-
-// UV read timer
+// Schedule fetch timer
 hw_timer_t * timer = NULL;
 volatile SemaphoreHandle_t timerSemaphore;
+
+// Error codes for struct bus error_code
+#define ERR_NO_ERROR 0
+#define ERR_UNKNOWN_ERROR -1
+#define ERR_JSON_MISSING_DATA -2
+#define ERR_JSON_PARSE_ERROR -3
+#define ERR_HTTP_ERROR -4
+#define ERR_CONNECTION_ERROR -5
+#define ERR_CLIENT_CREATE_ERROR -6
+#define ERR_UNINITIALIZED -7
 
 struct bus {
 	int route_number;
 	char dep_time[6]; // "HH:MM\x00"
 	bool real_time;
+	int error_code;
 } bus_110, bus_144;
 
 void setup() {
 	Serial.begin(115200);
 
+	bus_110.error_code = ERR_UNINITIALIZED;
+	bus_144.error_code = ERR_UNINITIALIZED;
+
 	// Init display
+	screen_direction = 1;
 	display.begin(0x3C, true); // Address 0x3C default
 	display.clearDisplay();
 	display.display();
 	delay(250);
 
-	screen_direction = 1;
 	display.setRotation(screen_direction ? 1 : 3);
 
 	display.setTextSize(1);
@@ -107,7 +119,7 @@ void setup() {
 	timerSemaphore = xSemaphoreCreateBinary();
 	timer = timerBegin(1000000); // 1 MHz
 	timerAttachInterrupt(timer, &onTimer);
-	timerAlarm(timer, 500000, true, 0); // Start 500ms repeating timer
+	timerAlarm(timer, 30*1000*1000, true, 0); // Start 30s repeating timer
 
 	// Init buttons
 	init_button(&rotate_screen_button, BUTTON_C);
@@ -121,6 +133,8 @@ void ARDUINO_ISR_ATTR onTimer(){
 void update_display() {
 	display.clearDisplay();
 	display.setRotation(screen_direction ? 1 : 3);
+
+	// TODO: Deal with error_code for bus_110 and bus_144
 
 	// Display bus 110 departure time
 	display.setCursor(1,26);
@@ -141,12 +155,6 @@ void update_display() {
 	}
 	display.print(bus_144.dep_time);
 
-	// Reset to system font
-	display.setFont();
-
-	// Display exposure time
-	display.setCursor(1,display.height()-8);
-	
 	// Show if wifi is connected with a little "antenna" in the corner
 	if (WiFi.status() == WL_CONNECTED) {
 		display.drawChar(display.width() - 6, 0, 0x1F, 1, 0, 1);
@@ -155,9 +163,10 @@ void update_display() {
 	display.display();
 }
 
+
 int fetch_schedule(int stop_number, int route_number, struct bus *out) {
 	NetworkClientSecure *client = new NetworkClientSecure;
-	int ret = -1;
+	int ret = ERR_UNKNOWN_ERROR;
 	if (client) {
 		client->setCACert(rootCACertificate);
 		{
@@ -197,33 +206,34 @@ int fetch_schedule(int stop_number, int route_number, struct bus *out) {
 								out->route_number = route_number;
 								strncpy(out->dep_time, (const char *)dt, 6);
 								out->real_time = (bool)rt;
-								ret = 0;
+								ret = ERR_NO_ERROR;
 							} else {
-								Serial.println("[HTTPS] No departure time or real time data found");
-								ret = -5;
+								Serial.println("[JSON] No departure time or real time data found");
+								ret = ERR_JSON_MISSING_DATA;
 							}
 						} else {
-							Serial.printf("[HTTPS] JSON parse error: %s\n", error.c_str());
-							ret = -4;
+							Serial.printf("[JSON] JSON parse error: %s\n", error.c_str());
+							ret = ERR_JSON_PARSE_ERROR;
 						}
 					}
 				} else {
 					Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-					ret = -1;
+					ret = ERR_HTTP_ERROR;
 				}
 
 				https.end();
 			} else {
 				Serial.printf("[HTTPS] Unable to connect\n");
-				ret = -2;
+				ret = ERR_CONNECTION_ERROR;
 			}
 			// End extra scoping block
 		}
 		delete client;
 	} else {
 		Serial.println("Unable to create client");
-		ret = -3;
+		ret = ERR_CLIENT_CREATE_ERROR;
 	}
+	out->error_code = ret;
 	return ret;
 }
 
@@ -241,23 +251,22 @@ void pp(struct bus* printme) {
 void loop() {
 	// Check if the timer interrupt has set the semaphore
 	if (xSemaphoreTake(timerSemaphore, 0) == pdTRUE){
+		// TODO: Indicate that we're fetching the schedule on the screen
+		fetch_schedule(52598, 110, &bus_110);
+		fetch_schedule(52598, 144, &bus_144);
+		// TODO: Remove indication
 		update_display();
-		half_seconds += 1;
-	}
-
-	if (half_seconds > 60) {
-		half_seconds = 0;
-		struct bus departures[2];
-		if (!fetch_schedule(52598, 110, &bus_110)) {
-			pp(&bus_110);
-		}
-		if (!fetch_schedule(52598, 144, &bus_144)) {
-			pp(&bus_144);
-		}
 	}
 
 	switch (handle_button(&rotate_screen_button)) {
+	case BUTTON_HELD_50MS:
+		// Short press, update the display
+		// TODO: Trigger an on-demand update of the display, including the bus schedules
+		update_display();
+		break;
+
 	case BUTTON_HELD_500MS:
+		// Long press, rotate the screen
 		screen_direction = ! screen_direction;
 		break;
 	
