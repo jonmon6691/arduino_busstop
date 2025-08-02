@@ -2,6 +2,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <math.h>
+#define max_(a,b) ((a)>(b)?(a):(b))
 
 #include "button.h"
 struct button rotate_screen_button;
@@ -85,7 +86,9 @@ struct bus {
 	char dep_time[6]; // "HH:MM\x00"
 	bool real_time;
 	int error_code;
+	int eta;
 } bus_110, bus_144;
+int update_timer = 58;
 
 void setup() {
 	Serial.begin(115200);
@@ -138,29 +141,33 @@ void update_display() {
 	// TODO: Deal with error_code for bus_110 and bus_144
 
 	// Display bus 110 departure time
-	display.setCursor(1,26);
+	display.setCursor(3,20);
 	display.setFont(FONT_BUS);
 	if (bus_110.real_time) {
 		display.print("&  "); // & mapped to a bus icon in the font
 	} else {
 		display.print("(  "); // ( mapped to a bus icon in the font, non-real-time version
 	}
-	display.print(bus_110.dep_time);
+	display.print(bus_110.eta / 60); // Display ETA in minutes
+	display.print("m");
 
 	// Display bus 144 departure time
-	display.setCursor(1,62);
+	display.setCursor(3,56);
 	if (bus_144.real_time) {
 		display.print("'  "); // ' mapped to a bus icon in the font
 	} else {
 		display.print(")  "); // ) mapped to a bus icon in the font, non-real-time version
 	}
-	display.print(bus_144.dep_time);
+	display.print(bus_144.eta / 60); // Display ETA in minutes
+	display.print("m");
 
 	display.setFont();
 	// Show if wifi is connected with a little "antenna" in the corner
 	if (WiFi.status() == WL_CONNECTED) {
 		display.drawChar(display.width() - 6, 0, 0x1F, 1, 0, 1);
 	}
+
+	display.drawLine(0, 0, 0, 64 * update_timer / 60, SH110X_WHITE);
 	
 	display.display();
 }
@@ -201,12 +208,15 @@ int fetch_schedule(int stop_number, int route_number, struct bus *out) {
 						JsonDocument doc;
 						DeserializationError error = deserializeJson(doc, payload);
 						if (!error) {
+							JsonVariant lu = doc[0]["lu"];
 							JsonVariant response = doc[0]["r"][0]["t"][0];
+							JsonVariant ut = response["ut"];
 							JsonVariant dt = response["dt"];
 							JsonVariant rt = response["rt"];
-							if (dt.isNull() == false && rt.isNull() == false) {
+							if (lu.isNull() == false && rt.isNull() == false && ut.isNull() == false && dt.isNull() == false) {
 								out->route_number = route_number;
 								strncpy(out->dep_time, (const char *)dt, 6);
+								out->eta = max_((long)ut - (long)lu, 0);
 								out->real_time = (bool)rt;
 								ret = ERR_NO_ERROR;
 							} else {
@@ -239,7 +249,6 @@ int fetch_schedule(int stop_number, int route_number, struct bus *out) {
 	return ret;
 }
 
-unsigned int half_seconds = 60;
 void pp(struct bus* printme) {
 	Serial.print(printme->route_number);
 	Serial.print(" leaves at ");
@@ -249,7 +258,6 @@ void pp(struct bus* printme) {
 	}
 	Serial.println();
 }
-int update_timer = 58;
 void loop() {
 	// Check if the timer interrupt has set the semaphore
 	if (xSemaphoreTake(timerSemaphore, 0) == pdTRUE){
