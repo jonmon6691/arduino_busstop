@@ -65,6 +65,10 @@ MrY=
 // Schedule fetch timer
 hw_timer_t * timer = NULL;
 volatile SemaphoreHandle_t timerSemaphore;
+void ARDUINO_ISR_ATTR onTimer(){
+	// Give a semaphore that we can check in the loop
+	xSemaphoreGiveFromISR(timerSemaphore, NULL);
+}
 
 // Error codes for struct bus error_code
 #define ERR_NO_ERROR 0
@@ -119,15 +123,12 @@ void setup() {
 	timerSemaphore = xSemaphoreCreateBinary();
 	timer = timerBegin(1000000); // 1 MHz
 	timerAttachInterrupt(timer, &onTimer);
-	timerAlarm(timer, 30*1000*1000, true, 0); // Start 30s repeating timer
+	timerAlarm(timer, 500*1000, true, 0); // Start 0.5s repeating timer
 
 	// Init buttons
 	init_button(&rotate_screen_button, BUTTON_C);
-}
 
-void ARDUINO_ISR_ATTR onTimer(){
-	// Give a semaphore that we can check in the loop
-	xSemaphoreGiveFromISR(timerSemaphore, NULL);
+	update_display();
 }
 
 void update_display() {
@@ -155,6 +156,7 @@ void update_display() {
 	}
 	display.print(bus_144.dep_time);
 
+	display.setFont();
 	// Show if wifi is connected with a little "antenna" in the corner
 	if (WiFi.status() == WL_CONNECTED) {
 		display.drawChar(display.width() - 6, 0, 0x1F, 1, 0, 1);
@@ -247,10 +249,16 @@ void pp(struct bus* printme) {
 	}
 	Serial.println();
 }
-
+int update_timer = 58;
 void loop() {
 	// Check if the timer interrupt has set the semaphore
 	if (xSemaphoreTake(timerSemaphore, 0) == pdTRUE){
+		update_display();
+		update_timer++;
+	}
+
+	if (update_timer > 60) {
+		update_timer = 0;
 		// TODO: Indicate that we're fetching the schedule on the screen
 		fetch_schedule(52598, 110, &bus_110);
 		fetch_schedule(52598, 144, &bus_144);
