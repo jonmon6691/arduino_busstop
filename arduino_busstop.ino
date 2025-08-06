@@ -5,6 +5,10 @@
 #define max_(a,b) ((a)>(b)?(a):(b))
 
 #include "button.h"
+#include "network_config.h"
+#include "translink/translink.h"
+// #include "trimet/trimet.h"
+
 struct button rotate_screen_button;
 int screen_direction;
 
@@ -27,36 +31,10 @@ const char *password = WIFI_PASSWORD;
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <NetworkClientSecure.h>
-// This is a DigiCert Global Root G2 cert, the root Certificate Authority that
-// signed the server certificate for the TransLink server https://getaway.translink.ca
-// This certificate is valid until Jan 15 00:00:00 2038 GMT
-const char *rootCACertificate = R"string_literal(
------BEGIN CERTIFICATE-----
-MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
-MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT
-MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
-b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG
-9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI
-2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx
-1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ
-q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz
-tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ
-vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP
-BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV
-5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY
-1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4
-NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG
-Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
-8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
-pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
-MrY=
------END CERTIFICATE-----
-)string_literal";
 
-// For decoding the translink API data
-#include <ArduinoJson.h>
+#if defined(ESP8266)
+#error "This sketch is not compatible with ESP8266"
+#endif
 
 // Buttons on the OLED display
 #define BUTTON_A 15
@@ -87,14 +65,14 @@ struct bus {
 	bool real_time;
 	int error_code;
 	int eta;
-} bus_110, bus_144;
+} bus_1, bus_2;
 int update_timer = 58;
 
 void setup() {
 	Serial.begin(115200);
 
-	bus_110.error_code = ERR_UNINITIALIZED;
-	bus_144.error_code = ERR_UNINITIALIZED;
+	bus_1.error_code = ERR_UNINITIALIZED;
+	bus_2.error_code = ERR_UNINITIALIZED;
 
 	// Init display
 	screen_direction = 1;
@@ -138,27 +116,27 @@ void update_display() {
 	display.clearDisplay();
 	display.setRotation(screen_direction ? 1 : 3);
 
-	// TODO: Deal with error_code for bus_110 and bus_144
+	// TODO: Deal with error_code for bus_1 and bus_2
 
-	// Display bus 110 departure time
+	// Display bus 1 departure time
 	display.setCursor(3,20);
 	display.setFont(FONT_BUS);
-	if (bus_110.real_time) {
+	if (bus_1.real_time) {
 		display.print("&  "); // & mapped to a bus icon in the font
 	} else {
 		display.print("(  "); // ( mapped to a bus icon in the font, non-real-time version
 	}
-	display.print(bus_110.eta / 60); // Display ETA in minutes
+	display.print(bus_1.eta / 60); // Display ETA in minutes
 	display.print("m");
 
-	// Display bus 144 departure time
+	// Display bus 2 departure time
 	display.setCursor(3,56);
-	if (bus_144.real_time) {
+	if (bus_2.real_time) {
 		display.print("'  "); // ' mapped to a bus icon in the font
 	} else {
 		display.print(")  "); // ) mapped to a bus icon in the font, non-real-time version
 	}
-	display.print(bus_144.eta / 60); // Display ETA in minutes
+	display.print(bus_2.eta / 60); // Display ETA in minutes
 	display.print("m");
 
 	display.setFont();
@@ -172,34 +150,7 @@ void update_display() {
 	display.display();
 }
 
-
-void parse_schedule_json(String payload, int route_number, struct bus *out) {
-    JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, payload);
-    if (error) {
-        Serial.printf("[JSON] JSON parse error: %s\n", error.c_str());
-        out->error_code = ERR_JSON_PARSE_ERROR;
-        return;
-    }
-
-    JsonVariant lu = doc[0]["lu"];
-    JsonVariant response = doc[0]["r"][0]["t"][0];
-    JsonVariant ut = response["ut"];
-    JsonVariant dt = response["dt"];
-    JsonVariant rt = response["rt"];
-
-    if (lu.isNull() || rt.isNull() || ut.isNull() || dt.isNull()) {
-        Serial.println("[JSON] No departure time or real time data found");
-        out->error_code = ERR_JSON_MISSING_DATA;
-        return;
-    }
-
-    out->route_number = route_number;
-    strncpy(out->dep_time, (const char *)dt, 6);
-    out->eta = max_((long)ut - (long)lu, 0);
-    out->real_time = (bool)rt;
-    out->error_code = ERR_NO_ERROR;
-}
+extern const char *rootCACertificate;
 
 String execute_http_request(const char* url, int *error_code) {
     NetworkClientSecure *client = new NetworkClientSecure;
@@ -249,23 +200,6 @@ String execute_http_request(const char* url, int *error_code) {
     return payload;
 }
 
-void fetch_schedule(int stop_number, int route_number, struct bus *out) {
-	out->error_code = ERR_UNINITIALIZED;
-
-	char url[128];
-	snprintf(url, 128, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=6", stop_number, route_number);
-
-	int http_error_code = ERR_UNINITIALIZED;
-	String payload = execute_http_request(url, &http_error_code);
-
-	if (http_error_code != ERR_NO_ERROR) {
-		out->error_code = http_error_code;
-		return;
-	}
-
-	parse_schedule_json(payload, route_number, out);
-}
-
 void pp(struct bus* printme) {
 	Serial.print(printme->route_number);
 	Serial.print(" leaves at ");
@@ -285,8 +219,8 @@ void loop() {
 	if (update_timer > 60) {
 		update_timer = 0;
 		// TODO: Indicate that we're fetching the schedule on the screen
-		fetch_schedule(52598, 110, &bus_110);
-		fetch_schedule(52598, 144, &bus_144);
+		fetch_schedule(STOP_NUMBER, ROUTE_NUMBER_1, &bus_1);
+		fetch_schedule(STOP_NUMBER, ROUTE_NUMBER_2, &bus_2);
 		// TODO: Remove indication
 		update_display();
 	}
