@@ -173,80 +173,97 @@ void update_display() {
 }
 
 
-int fetch_schedule(int stop_number, int route_number, struct bus *out) {
-	NetworkClientSecure *client = new NetworkClientSecure;
-	int ret = ERR_UNKNOWN_ERROR;
-	if (client) {
-		client->setCACert(rootCACertificate);
-		{
-			// Add a scoping block for HTTPClient https to make sure it is destroyed before NetworkClientSecure *client is
-			HTTPClient https;
+void parse_schedule_json(String payload, int route_number, struct bus *out) {
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, payload);
+    if (error) {
+        Serial.printf("[JSON] JSON parse error: %s\n", error.c_str());
+        out->error_code = ERR_JSON_PARSE_ERROR;
+        return;
+    }
 
-			// Headers stolen from my browser, not sure what the minimum required set is
-			https.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:139.0) Gecko/20100101 Firefox/139.0");
-			https.addHeader("Sec-Fetch-Dest", "document", false, false);
-			https.addHeader("Sec-Fetch-Mode", "navigate", false, false);
-			https.addHeader("Sec-Fetch-Site", "none", false, false);
-			https.addHeader("Sec-Fetch-User", "?1");
+    JsonVariant lu = doc[0]["lu"];
+    JsonVariant response = doc[0]["r"][0]["t"][0];
+    JsonVariant ut = response["ut"];
+    JsonVariant dt = response["dt"];
+    JsonVariant rt = response["rt"];
 
-			char url[128];
-			snprintf(url, 128, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=6", stop_number, route_number);
+    if (lu.isNull() || rt.isNull() || ut.isNull() || dt.isNull()) {
+        Serial.println("[JSON] No departure time or real time data found");
+        out->error_code = ERR_JSON_MISSING_DATA;
+        return;
+    }
 
-			if (https.begin(*client, url)) {  // HTTPS
-				Serial.print("[HTTPS] GET...\n");
-				// start connection and send HTTP header
-				int httpCode = https.GET();
+    out->route_number = route_number;
+    strncpy(out->dep_time, (const char *)dt, 6);
+    out->eta = max_((long)ut - (long)lu, 0);
+    out->real_time = (bool)rt;
+    out->error_code = ERR_NO_ERROR;
+}
 
-				// httpCode will be negative on error
-				if (httpCode > 0) {
-					// HTTP header has been send and Server response header has been handled
-					Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
+String execute_http_request(const char* url, int *error_code) {
+    NetworkClientSecure *client = new NetworkClientSecure;
+    if (!client) {
+        Serial.println("Unable to create client");
+        *error_code = ERR_CLIENT_CREATE_ERROR;
+        return "";
+    }
+    client->setCACert(rootCACertificate);
 
-					// file found at server
-					if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-						String payload = https.getString();
-						JsonDocument doc;
-						DeserializationError error = deserializeJson(doc, payload);
-						if (!error) {
-							JsonVariant lu = doc[0]["lu"];
-							JsonVariant response = doc[0]["r"][0]["t"][0];
-							JsonVariant ut = response["ut"];
-							JsonVariant dt = response["dt"];
-							JsonVariant rt = response["rt"];
-							if (lu.isNull() == false && rt.isNull() == false && ut.isNull() == false && dt.isNull() == false) {
-								out->route_number = route_number;
-								strncpy(out->dep_time, (const char *)dt, 6);
-								out->eta = max_((long)ut - (long)lu, 0);
-								out->real_time = (bool)rt;
-								ret = ERR_NO_ERROR;
-							} else {
-								Serial.println("[JSON] No departure time or real time data found");
-								ret = ERR_JSON_MISSING_DATA;
-							}
-						} else {
-							Serial.printf("[JSON] JSON parse error: %s\n", error.c_str());
-							ret = ERR_JSON_PARSE_ERROR;
-						}
-					}
-				} else {
-					Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-					ret = ERR_HTTP_ERROR;
-				}
+    String payload = "";
+    // Add a scoping block for HTTPClient https to make sure it is destroyed before NetworkClientSecure *client is
+    {
+        HTTPClient https;
 
-				https.end();
-			} else {
-				Serial.printf("[HTTPS] Unable to connect\n");
-				ret = ERR_CONNECTION_ERROR;
-			}
-			// End extra scoping block
-		}
-		delete client;
-	} else {
-		Serial.println("Unable to create client");
-		ret = ERR_CLIENT_CREATE_ERROR;
+        // Headers stolen from my browser, not sure what the minimum required set is
+        https.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:139.0) Gecko/20100101 Firefox/139.0");
+        https.addHeader("Sec-Fetch-Dest", "document", false, false);
+        https.addHeader("Sec-Fetch-Mode", "navigate", false, false);
+        https.addHeader("Sec-Fetch-Site", "none", false, false);
+        https.addHeader("Sec-Fetch-User", "?1");
+
+        if (!https.begin(*client, url)) {
+            Serial.printf("[HTTPS] Unable to connect\n");
+            *error_code = ERR_CONNECTION_ERROR;
+            delete client;
+            return "";
+        }
+
+        Serial.print("[HTTPS] GET...\n");
+        int httpCode = https.GET();
+
+        if (httpCode <= 0) {
+            Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+            *error_code = ERR_HTTP_ERROR;
+        } else if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+            payload = https.getString();
+            *error_code = ERR_NO_ERROR;
+        } else {
+            Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
+            *error_code = ERR_HTTP_ERROR;
+        }
+
+        https.end();
+    }
+    delete client;
+    return payload;
+}
+
+void fetch_schedule(int stop_number, int route_number, struct bus *out) {
+	out->error_code = ERR_UNINITIALIZED;
+
+	char url[128];
+	snprintf(url, 128, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=6", stop_number, route_number);
+
+	int http_error_code = ERR_UNINITIALIZED;
+	String payload = execute_http_request(url, &http_error_code);
+
+	if (http_error_code != ERR_NO_ERROR) {
+		out->error_code = http_error_code;
+		return;
 	}
-	out->error_code = ret;
-	return ret;
+
+	parse_schedule_json(payload, route_number, out);
 }
 
 void pp(struct bus* printme) {
