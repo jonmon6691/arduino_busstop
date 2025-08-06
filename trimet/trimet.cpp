@@ -5,6 +5,7 @@
 
 extern String execute_http_request(const char* url, int *error_code);
 
+// Digicert G2, used by developer.trimet.org as of July 2025. Expires 2038
 const char *rootCACertificate = R"string_literal(
 -----BEGIN CERTIFICATE-----
 MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
@@ -68,7 +69,7 @@ void fetch_schedule(int stop_number, int route_number, struct bus *out) {
 	out->error_code = ERR_UNINITIALIZED;
 
 	char url[128];
-	snprintf(url, 128, "https://developer.trimet.org/ws/V2/arrivals?locIDs=%d&json=true&appID=YOUR_APP_ID_HERE", stop_number);
+	snprintf(url, 128, "https://developer.trimet.org/ws/V2/arrivals?locIDs=%d&json=true&appID=01A4A3D242C07049003BA35D8", stop_number);
 
 	int http_error_code = ERR_UNINITIALIZED;
 	String payload = execute_http_request(url, &http_error_code);
