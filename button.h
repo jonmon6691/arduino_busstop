@@ -12,12 +12,12 @@
 #define BUTTON_RISING_EDGE 6
 
 struct button {
-	uint8_t pin;
-	unsigned long millis_last_falling_edge;
-	int last_button_state;
-	int timer1_fired;
-	int timer2_fired;
-	int timer3_fired;
+    uint8_t pin;
+    unsigned long millis_last_falling_edge;
+    int last_button_state;
+    int timer1_fired;
+    int timer2_fired;
+    int timer3_fired;
 };
 
 

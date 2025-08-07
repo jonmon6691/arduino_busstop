@@ -1,12 +1,14 @@
 # Arduino Bus Stop
 An Adafruit Feather based Bus stop arrival display
 
+![](media/busstop.gif)
+
 ## Buttons
 | Button | Function | Notes |
 | --- | --- | --- |
 | A | | |
 | B | | |
-| C | Change Display | Press and hold to rotate the screen 180 degrees. |
+| C | Rotate Display | Press and hold to rotate the screen 180 degrees. |
 
 ## Building (and Connecting to WiFi)
 Copy the file `wifi_login.h.example` to `wifi_login.h`. Then edit it and change these lines, leaving the "quote marks" intact:
@@ -17,6 +19,32 @@ Copy the file `wifi_login.h.example` to `wifi_login.h`. Then edit it and change 
 ```
 
 Build using the Arduino IDE or compatible IDE such as VS Code. After uploading the sketch, when the Blueprint powers on, it will show "Connecting to your_ssid..." on the screen. Ensure this matches the ssid that you set. While the Blueprint is connected to wifi, there will be a small antenna symbol in the upper right corner of the screen.
+
+## Configuring the stops
+
+This project supports the following transit networks:
+* Translink (Vancouver, BC)
+* TriMet (Portland, OR) (Untested)
+
+To switch between networks, you need to modify `arduino_busstop.ino` to include the correct network module, and `busstop_config.h` to set the correct stop and route numbers.
+
+For example, to use the Translink network, you would include `translink.h` in `arduino_busstop.ino`:
+```c++
+#include "translink.h"
+```
+
+To use the TriMet network, you would include `trimet.h` in `arduino_busstop.ino`:
+```c++
+#include "trimet.h"
+```
+
+Then, you need to edit `busstop_config.h` to set the desired stop and route numbers.
+
+```c++
+#define STOP_NUMBER 52598
+#define ROUTE_NUMBER_1 110
+#define ROUTE_NUMBER_2 144
+```
 
 # Hardware
 - Adafruit HUZZAH32 – ESP32 Feather Board 
