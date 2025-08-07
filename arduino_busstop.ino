@@ -11,8 +11,8 @@
 #include "busstop_config.h" // Edit this file to set your bus stop configuration
 
 // Include only ONE of these transit API headers  v
-#include "translink.h"
-// #include "trimet.h"
+#include "systems/translink.h"
+//#include "systems/trimet.h"
 // -----------------------------------------------^
 
 // Display object

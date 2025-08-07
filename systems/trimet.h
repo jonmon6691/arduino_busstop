@@ -1,16 +1,16 @@
-#ifndef _TRANSLINK_H_
-#define _TRANSLINK_H_
+#ifndef _TRIMET_H_
+#define _TRIMET_H_
 
-#ifdef NETOWRK_MUTEX
-#error "Multiple network headers included, only include one"
+#ifdef SYSTEM_MUTEX
+#error "Multiple transit system headers included, only include one"
 #else
-#define NETOWRK_MUTEX
+#define SYSTEM_MUTEX
 #endif
 
 #include <ArduinoJson.h>
 #include "transit_api.h"
 
-// Digicert G2, used by getaway.translink.ca as of July 2025. Expires 2038
+// Digicert G2, used by developer.trimet.org as of July 2025. Expires 2038
 const char *rootCACertificate = R"string_literal(
 -----BEGIN CERTIFICATE-----
 MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
@@ -45,22 +45,27 @@ void parse_schedule_json(String payload, int route_number, struct bus *out) {
         return;
     }
 
-    JsonVariant lu = doc[0]["lu"];
-    JsonVariant response = doc[0]["r"][0]["t"][0];
-    JsonVariant ut = response["ut"];
-    JsonVariant dt = response["dt"];
-    JsonVariant rt = response["rt"];
+    JsonVariant resultSet = doc["resultSet"];
+    JsonVariant arrival = resultSet["arrival"][0];
+    JsonVariant scheduled = arrival["scheduled"];
+    JsonVariant estimated = arrival["estimated"];
+    JsonVariant shortSign = arrival["shortSign"];
 
-    if (lu.isNull() || rt.isNull() || ut.isNull() || dt.isNull()) {
+
+    if (scheduled.isNull() || estimated.isNull() || shortSign.isNull()) {
         Serial.println("[JSON] No departure time or real time data found");
         out->error_code = ERR_JSON_MISSING_DATA;
         return;
     }
 
+    long now = resultSet["queryTime"];
+    long sch = scheduled;
+    long est = estimated;
+
     out->route_number = route_number;
-    strncpy(out->dep_time, (const char *)dt, 6);
-    out->eta = max_((long)ut - (long)lu, 0);
-    out->real_time = (bool)rt;
+    strftime(out->dep_time, 6, "%H:%M", localtime(&sch));
+    out->eta = max_(est - now, 0);
+    out->real_time = est > 0;
     out->error_code = ERR_NO_ERROR;
 }
 
@@ -69,7 +74,7 @@ void fetch_schedule(int stop_number, int route_number, struct bus *out) {
     out->error_code = ERR_UNINITIALIZED;
 
     char url[128];
-    snprintf(url, 128, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=6", stop_number, route_number);
+    snprintf(url, 128, "https://developer.trimet.org/ws/V2/arrivals?locIDs=%d&json=true&appID=01A4A3D242C07049003BA35D8", stop_number);
 
     int http_error_code = ERR_UNINITIALIZED;
     String payload = execute_http_request(url, &http_error_code);
@@ -82,4 +87,4 @@ void fetch_schedule(int stop_number, int route_number, struct bus *out) {
     parse_schedule_json(payload, route_number, out);
 }
 
-#endif // _TRANSLINK_H_
+#endif // _TRIMET_H_

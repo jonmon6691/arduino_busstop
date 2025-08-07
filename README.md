@@ -28,14 +28,14 @@ This project supports the following transit networks:
 
 To switch between networks, you need to modify `arduino_busstop.ino` to include the correct network module, and `busstop_config.h` to set the correct stop and route numbers.
 
-For example, to use the Translink network, you would include `translink.h` in `arduino_busstop.ino`:
+For example, to use the Translink network, you would include `systems/translink.h` in `arduino_busstop.ino`:
 ```c++
-#include "translink.h"
+#include "systems/translink.h"
 ```
 
-To use the TriMet network, you would include `trimet.h` in `arduino_busstop.ino`:
+To use the TriMet network, you would include `systems/trimet.h` in `arduino_busstop.ino`:
 ```c++
-#include "trimet.h"
+#include "systems/trimet.h"
 ```
 
 Then, you need to edit `busstop_config.h` to set the desired stop and route numbers.
