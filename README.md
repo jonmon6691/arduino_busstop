@@ -40,6 +40,12 @@ To use the TriMet network, you would include `trimet.h` in `arduino_busstop.ino`
 
 Then, you need to edit `busstop_config.h` to set the desired stop and route numbers.
 
+```c++
+#define STOP_NUMBER 52598
+#define ROUTE_NUMBER_1 110
+#define ROUTE_NUMBER_2 144
+```
+
 # Hardware
 - Adafruit HUZZAH32 – ESP32 Feather Board 
   - [https://www.adafruit.com/product/3405](https://www.adafruit.com/product/3405)
