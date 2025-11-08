@@ -7,13 +7,11 @@
 #include <WiFi.h>
 #include "button.h" // Button debouncing and handling
 
-#include "wifi_login.h" // Edit this file to set your WiFi credentials
-#include "busstop_config.h" // Edit this file to set your bus stop configuration
+#include "user_config.h" // Edit this file to set your WiFi credentials
 
-// Include only ONE of these transit API headers  v
-#include "systems/translink.h"
-//#include "systems/trimet.h"
-// -----------------------------------------------^
+#ifndef SYSTEM_MUTEX
+#error "No system transit header included! Uncomment one in user_config.h"
+#endif
 
 // Display object
 Adafruit_SH1107 display = Adafruit_SH1107(64, 128, &Wire);
@@ -76,6 +74,23 @@ void setup() {
         display.display();
     }
 
+    configTime(0, 0, "pool.ntp.org");
+
+    Serial.print(F("Waiting for NTP time sync: "));
+    time_t nowSecs = time(nullptr);
+    while (nowSecs < 8 * 3600 * 2) {
+        delay(500);
+        Serial.print(".");
+        nowSecs = time(nullptr);
+    }
+
+    Serial.println();
+    struct tm timeinfo;
+    gmtime_r(&nowSecs, &timeinfo);
+    Serial.print(F("Current time: "));
+    char buf[26];
+    Serial.print(asctime_r(&timeinfo, buf));
+
     // Create semaphore to inform us when the timer has fired
     timerSemaphore = xSemaphoreCreateBinary();
     timer = timerBegin(1000000); // 1 MHz
@@ -105,8 +120,8 @@ void update_display() {
         display.print("m");
     } else {
         display.print("(  "); // ( mapped to a worried bus icon in the font
-    display.print(bus_1.eta / 60); // Display ETA in minutes
-    display.print("m");
+        display.print(bus_1.eta / 60); // Display ETA in minutes
+        display.print("m");
     }
 
     // Display bus 2 departure time
@@ -119,10 +134,10 @@ void update_display() {
         display.print("m");
     } else {
         display.print(")  "); // ) mapped to a worried bus icon in the font
-    display.print(bus_2.eta / 60); // Display ETA in minutes
-    display.print("m");
+        display.print(bus_2.eta / 60); // Display ETA in minutes
+        display.print("m");
     }
-
+    
     display.setFont();
     // Show if wifi is connected with a little "antenna" in the corner
     if (WiFi.status() == WL_CONNECTED) {

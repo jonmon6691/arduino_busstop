@@ -1,5 +1,5 @@
-#ifndef _HTTP_H_
-#define _HTTP_H_
+#ifndef _TRANSIT_API_H_
+#define _TRANSIT_API_H_
 
 #include <HTTPClient.h>
 #include <NetworkClientSecure.h>
@@ -29,7 +29,11 @@ struct bus {
     int eta;
 };
 
-
+#ifdef USE_CLIENT_CERTIFICATE
+#include "client_auth.h"
+extern const char *clientCert;
+extern const char *clientKey;
+#endif
 extern const char *rootCACertificate;
 
 String execute_http_request(const char* url, int *error_code) {
@@ -40,6 +44,10 @@ String execute_http_request(const char* url, int *error_code) {
         return "";
     }
     client->setCACert(rootCACertificate);
+    #ifdef USE_CLIENT_CERTIFICATE
+    client->setCertificate(clientCert);
+    client->setPrivateKey(clientKey);
+    #endif
 
     String payload = "";
     // Add a scoping block for HTTPClient https to make sure it is destroyed before NetworkClientSecure *client is
@@ -81,4 +89,4 @@ String execute_http_request(const char* url, int *error_code) {
 }
 
 
-#endif // _HTTP_H_
+#endif // _TRANSIT_API_H_

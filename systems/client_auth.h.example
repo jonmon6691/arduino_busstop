@@ -1,0 +1,27 @@
+#ifndef _CLIENT_AUTH_H_
+#define _CLIENT_AUTH_H_
+
+// Set this in wifi_login.h to enable client certificate authentication
+#ifdef USE_CLIENT_CERTIFICATE
+
+const char *clientCert = R"string_literal(
+-----BEGIN CERTIFICATE-----
+PASTE HERE
+-----END CERTIFICATE-----
+)string_literal";
+
+const char *clientKey = R"string_literal(
+-----BEGIN PRIVATE KEY-----
+PASTE HERE
+-----END PRIVATE KEY-----
+)string_literal";
+
+const char *rootCACertificate = R"string_literal(
+-----BEGIN CERTIFICATE-----
+PASTE HERE
+-----END CERTIFICATE-----
+)string_literal";
+
+#endif // USE_CLIENT_CERTIFICATE
+
+#endif // _CLIENT_AUTH_H_

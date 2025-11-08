@@ -1,4 +1,5 @@
 .vscode/
 out/
 .DS_Store
-wifi_login.h
+user_config.h
+systems/client_auth.h

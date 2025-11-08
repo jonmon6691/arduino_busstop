@@ -1,0 +1,3 @@
+# Ignore keys and secrets
+keys/*
+!keys/README.md

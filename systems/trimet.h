@@ -10,6 +10,7 @@
 #include <ArduinoJson.h>
 #include "transit_api.h"
 
+#ifndef USE_CLIENT_CERTIFICATE
 // Digicert G2, used by developer.trimet.org as of July 2025. Expires 2038
 const char *rootCACertificate = R"string_literal(
 -----BEGIN CERTIFICATE-----
@@ -35,6 +36,7 @@ pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
 MrY=
 -----END CERTIFICATE-----
 )string_literal";
+#endif
 
 void parse_schedule_json(String payload, int route_number, struct bus *out) {
     JsonDocument doc;

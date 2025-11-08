@@ -1,8 +1,0 @@
-#ifndef _BUSSTOP_CONFIG_H_
-#define _BUSSTOP_CONFIG_H_
-
-#define STOP_NUMBER 52598
-#define ROUTE_NUMBER_1 110
-#define ROUTE_NUMBER_2 144
-
-#endif

@@ -1,0 +1,21 @@
+#ifndef _USER_CONFIG_H_
+#define _USER_CONFIG_H
+
+// Set your WiFi SSID and password here
+#define WIFI_SSID "your_ssid"
+#define WIFI_PASSWORD "hunter2"
+
+// Define this macro if for some reason the transit API requires client certificate authentication
+// You must also copy systems/client_auth.h.example to systems/client_auth.h and paste in your key material
+//#define USE_CLIENT_CERTIFICATE // Setup in systems/client_auth.h
+
+// Uncomment exactly ONE of these transit API header includes
+//#include "systems/translink.h" // Vancouver BC - Translink
+//#include "systems/trimet.h"    // Portland OR - TriMet
+
+// Set your bus stop configuration here
+#define STOP_NUMBER 12345
+#define ROUTE_NUMBER_1 420
+#define ROUTE_NUMBER_2 69
+
+#endif
