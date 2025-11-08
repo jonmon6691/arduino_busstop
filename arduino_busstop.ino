@@ -92,28 +92,36 @@ void update_display() {
     display.clearDisplay();
     display.setRotation(screen_direction ? 1 : 3);
 
-    // TODO: Deal with error_code for bus_1 and bus_2
+    // TODO: More explicit error handling/display
 
     // Display bus 1 departure time
     display.setCursor(3,20);
     display.setFont(FONT_BUS);
-    if (bus_1.real_time) {
-        display.print("&  "); // & mapped to a bus icon in the font
+    if (bus_1.error_code != ERR_NO_ERROR) {
+        display.print("* "); // * mapped to an error bus icon in the font
+    } else if (bus_1.real_time || bus_1.error_code == ERR_NO_ERROR) {
+        display.print("&  "); // & mapped to a cute bus icon in the font
+        display.print(bus_1.eta / 60); // Display ETA in minutes
+        display.print("m");
     } else {
-        display.print("(  "); // ( mapped to a bus icon in the font, non-real-time version
-    }
+        display.print("(  "); // ( mapped to a worried bus icon in the font
     display.print(bus_1.eta / 60); // Display ETA in minutes
     display.print("m");
+    }
 
     // Display bus 2 departure time
     display.setCursor(3,56);
-    if (bus_2.real_time) {
-        display.print("'  "); // ' mapped to a bus icon in the font
+    if (bus_2.error_code != ERR_NO_ERROR) {
+        display.print("+ "); // + mapped to an error bus icon in the font
+    } else if (bus_2.real_time) {
+        display.print("'  "); // ' mapped to a cute bus icon in the font
+        display.print(bus_2.eta / 60); // Display ETA in minutes
+        display.print("m");
     } else {
-        display.print(")  "); // ) mapped to a bus icon in the font, non-real-time version
-    }
+        display.print(")  "); // ) mapped to a worried bus icon in the font
     display.print(bus_2.eta / 60); // Display ETA in minutes
     display.print("m");
+    }
 
     display.setFont();
     // Show if wifi is connected with a little "antenna" in the corner
