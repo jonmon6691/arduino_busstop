@@ -40,13 +40,22 @@ void ARDUINO_ISR_ATTR onTimer(){
 }
 
 int update_timer = 58; // Incremented by timer ISR, reset to 0 after 60
-struct bus bus_1, bus_2;
+#ifdef ROUTE_NUMBER_1
+struct bus bus_1;
+#endif
+#ifdef ROUTE_NUMBER_2
+struct bus bus_2;
+#endif
 
 void setup() {
     Serial.begin(115200);
 
+    #ifdef ROUTE_NUMBER_1
     bus_1.error_code = ERR_UNINITIALIZED;
+    #endif
+    #ifdef ROUTE_NUMBER_2
     bus_2.error_code = ERR_UNINITIALIZED;
+    #endif
 
     // Init display
     screen_direction = 1;
@@ -109,6 +118,7 @@ void update_display() {
 
     // TODO: More explicit error handling/display
 
+    #ifdef ROUTE_NUMBER_1
     // Display bus 1 departure time
     display.setCursor(3,20);
     display.setFont(FONT_BUS);
@@ -123,7 +133,9 @@ void update_display() {
         display.print(bus_1.eta / 60); // Display ETA in minutes
         display.print("m");
     }
+    #endif
 
+    #ifdef ROUTE_NUMBER_2
     // Display bus 2 departure time
     display.setCursor(3,56);
     if (bus_2.error_code != ERR_NO_ERROR) {
@@ -137,7 +149,17 @@ void update_display() {
         display.print(bus_2.eta / 60); // Display ETA in minutes
         display.print("m");
     }
-    
+    #else
+    // Display the current time
+    display.setCursor(3,56);
+    if (bus_1.error_code != ERR_NO_ERROR) {
+        display.print(" "); // * mapped to an error bus icon in the font
+    } else {
+        display.print(",  "); // ( mapped to a worried bus icon in the font
+        display.print(bus_1.current_time); // Display current time
+    }
+    #endif
+
     display.setFont();
     // Show if wifi is connected with a little "antenna" in the corner
     if (WiFi.status() == WL_CONNECTED) {
@@ -159,8 +181,12 @@ void loop() {
     if (update_timer > 60) {
         update_timer = 0;
         // TODO: Indicate that we're fetching the schedule on the screen
+        #ifdef ROUTE_NUMBER_1
         fetch_schedule(STOP_NUMBER, ROUTE_NUMBER_1, &bus_1);
+        #endif
+        #ifdef ROUTE_NUMBER_2
         fetch_schedule(STOP_NUMBER, ROUTE_NUMBER_2, &bus_2);
+        #endif
         // TODO: Remove indication
         update_display();
     }

@@ -27,6 +27,7 @@ struct bus {
     bool real_time;
     int error_code;
     int eta;
+    char current_time[6]; // "HH:MM\x00"
 };
 
 #ifdef USE_CLIENT_CERTIFICATE
